@@ -20,9 +20,70 @@
       opacity: 0.5;
     }
   }
+  input, button {
+    background-color: #333;
+    color: #FFAC1C;
+    border: 1px solid #FFAC1C;
+    padding: 10px;
+    font-family: 'Courier New', Courier, monospace;
+  }
+  #response {
+    margin-top: 20px;
+    white-space: pre-wrap;
+  }
 </style>
 </head>
 <body>
   <h1>Hello from PAM</h1>
+  <input type="text" id="prompt" value="What is life?" size="50">
+  <button onclick="sendPrompt()">Send Prompt</button>
+  <div id="response"></div>
+    <script>
+      function sendPrompt() {
+        const prompt = document.getElementById('prompt').value;
+        document.getElementById('response').textContent = '';
+         const eventSource = new EventSource('/stream/' + encodeURIComponent(prompt));
+
+        eventSource.onopen = function() {
+          console.log('SSE connection opened');
+        };
+
+        eventSource.onmessage = function(event) {
+          console.log('Received SSE event:', event.data);
+          if (event.data === 'DONE') {
+            eventSource.close();
+            return;
+          }
+          if (event.data.startsWith('Error:')) {
+            document.getElementById('response').textContent += '\n' + event.data;
+            eventSource.close();
+            return;
+          }
+          document.getElementById('response').textContent += event.data;
+        };
+
+        eventSource.onerror = function(event) {
+          let errorMsg = '\nConnection error';
+          if (eventSource.readyState === EventSource.CLOSED) {
+            errorMsg += ' - Stream closed';
+          } else if (eventSource.readyState === EventSource.CONNECTING) {
+            errorMsg += ' - Failed to connect to server';
+          } else {
+            errorMsg += ' - Connection lost';
+          }
+          document.getElementById('response').textContent += errorMsg;
+          console.error('EventSource error:', event);
+          eventSource.close();
+        };
+
+        // Add timeout for long-running requests
+        setTimeout(() => {
+          if (eventSource.readyState !== EventSource.CLOSED) {
+            document.getElementById('response').textContent += '\nRequest timed out';
+            eventSource.close();
+          }
+        }, 30000); // 30 second timeout
+      }
+   </script>
 </body>
 </html>
